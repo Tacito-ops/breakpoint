@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Breachpoint</title>
+<style>
+  :root{
+    --blue:#4aa3ff; --red:#ff5d5d; --gold:#ffd166;
+    --ink:#0b0e14; --panel:rgba(12,16,24,.92); --line:rgba(255,255,255,.14);
+    --txt:#e8edf5; --dim:#96a3b8;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b0e14;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;color:var(--txt);
+    user-select:none;-webkit-user-select:none}
+  canvas{display:block}
+
+  /* ---------- shared overlay look ---------- */
+  .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,9,14,.82);backdrop-filter:blur(6px);z-index:20}
+  .hidden{display:none !important}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:26px 30px;max-width:900px;width:calc(100% - 40px);
+    box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  h1{margin:0 0 6px;font-size:34px;letter-spacing:.5px}
+  h2{margin:0 0 14px;font-size:22px}
+  p{margin:6px 0;color:var(--dim);line-height:1.5}
+  .btn{background:linear-gradient(180deg,#2f6fd0,#215aad);border:1px solid #4c8ae6;
+    color:#fff;font-size:16px;font-weight:600;padding:12px 26px;border-radius:9px;
+    cursor:pointer;letter-spacing:.4px}
+  .btn:hover{filter:brightness(1.15)}
+  .btn.ghost{background:transparent;border-color:var(--line);color:var(--dim)}
+
+  /* ---------- buy menu ---------- */
+  #buyMenu .panel{max-width:960px}
+  .buyhead{display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px}
+  .money{font-size:30px;font-weight:700;color:var(--gold)}
+  .guns{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px}
+  .gun{background:rgba(255,255,255,.045);border:1px solid var(--line);border-radius:10px;
+    padding:14px;cursor:pointer;transition:.12s}
+  .gun:hover{background:rgba(74,163,255,.14);border-color:var(--blue);transform:translateY(-2px)}
+  .gun.owned{border-color:var(--gold);background:rgba(255,209,102,.12)}
+  .gun.broke{opacity:.35;cursor:not-allowed;transform:none}
+  .gun .n{font-weight:700;font-size:15px;margin-bottom:2px}
+  .gun .p{color:var(--gold);font-size:13px;margin-bottom:9px}
+  .gun .s{font-size:11.5px;color:var(--dim);line-height:1.7}
+  .bar{display:inline-block;width:52px;height:5px;background:rgba(255,255,255,.14);
+    border-radius:3px;vertical-align:middle;margin-left:5px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--blue)}
+  .buyfoot{display:flex;justify-content:space-between;align-items:center;margin-top:18px}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10;
+    font-variant-numeric:tabular-nums}
+  #cross{position:absolute;left:50%;top:50%;width:22px;height:22px;
+    transform:translate(-50%,-50%)}
+  #cross div{position:absolute;background:#fff;box-shadow:0 0 2px #000}
+  .ch-t{left:10px;top:0;width:2px;height:7px}
+  .ch-b{left:10px;bottom:0;width:2px;height:7px}
+  .ch-l{top:10px;left:0;height:2px;width:7px}
+  .ch-r{top:10px;right:0;height:2px;width:7px}
+  #hitmark{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(45deg);
+    width:16px;height:16px;opacity:0}
+  #hitmark div{position:absolute;background:#ff4d4d}
+
+  /* scope overlay — shown while zoomed in */
+  #scope{position:absolute;inset:0}
+  #scope .ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    border-radius:50%}
+  /* full black sniper scope: dark everywhere except a circular lens */
+  #scope[data-kind="sniper"]{background:
+    radial-gradient(circle at 50% 50%, transparent 0 32vh, rgba(0,0,0,.97) 32.3vh)}
+  #scope[data-kind="sniper"] .ring{width:64vh;height:64vh;border:2px solid #000}
+  #scope[data-kind="sniper"] .rx,#scope[data-kind="sniper"] .ry{background:#000}
+  /* light rifle optic: a thin ring, no blackout */
+  #scope[data-kind="ads"] .ring{width:52vh;height:52vh;border:2px solid rgba(0,0,0,.55)}
+  #scope[data-kind="ads"] .rx,#scope[data-kind="ads"] .ry{background:rgba(0,0,0,.6)}
+  /* crosshair lines drawn across the lens */
+  #scope .rx{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:2px;height:26px}
+  #scope .ry{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    height:2px;width:26px}
+  #scope .dot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:4px;height:4px;border-radius:50%;background:#ff4d4d}
+
+  .hudbox{position:absolute;background:rgba(8,11,17,.6);border:1px solid var(--line);
+    border-radius:9px;padding:9px 14px}
+  #btmleft{left:22px;bottom:22px}
+  #btmright{right:22px;bottom:22px;text-align:right}
+  #hp{font-size:30px;font-weight:700}
+  #ammo{font-size:30px;font-weight:700}
+  #ammo small{font-size:15px;color:var(--dim);font-weight:400}
+  #gunname{font-size:12px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+  #cash{position:absolute;left:22px;bottom:96px;font-size:19px;font-weight:700;color:var(--gold)}
+  #equip{position:absolute;left:22px;bottom:128px;display:flex;gap:8px}
+  #equip .eq{background:rgba(8,11,17,.6);border:1px solid var(--line);border-radius:7px;
+    padding:5px 9px;font-size:12px;color:var(--dim)}
+  #equip .eq b{color:#fff}
+  #equip .eq.empty{opacity:.35}
+  #equip .eq kbd{background:rgba(255,255,255,.12);border-radius:3px;padding:0 4px;
+    margin-right:4px;color:var(--gold);font-family:inherit}
+  /* drone piloting HUD */
+  #droneHud .dframe{position:absolute;inset:18px;border:2px solid rgba(74,163,255,.5);
+    border-radius:12px;box-shadow:inset 0 0 60px rgba(74,163,255,.12)}
+  #droneHud .dbar{position:absolute;left:50%;top:30px;transform:translateX(-50%);
+    background:rgba(8,11,17,.7);border:1px solid var(--line);border-radius:8px;
+    padding:8px 14px;font-size:13px;color:var(--dim);white-space:nowrap}
+  #droneHud .dbar kbd{background:rgba(255,255,255,.12);border-radius:3px;padding:0 5px;
+    color:var(--gold);font-family:inherit;font-size:12px}
+  #droneHud .dbar b{color:#fff}
+  #droneHud .dwarn{position:absolute;left:50%;bottom:64px;transform:translateX(-50%);
+    color:var(--red);font-weight:700;font-size:14px;letter-spacing:1px;
+    animation:pulse 1s infinite}
+  @keyframes pulse{50%{opacity:.4}}
+  #top{position:absolute;left:50%;top:16px;transform:translateX(-50%);text-align:center}
+  #score{font-size:26px;font-weight:700;letter-spacing:2px}
+  #score .b{color:var(--blue)} #score .r{color:var(--red)}
+  #timer{font-size:14px;color:var(--dim);margin-top:2px}
+  #alive{font-size:12px;color:var(--dim);margin-top:3px;letter-spacing:1px}
+  #feed{position:absolute;right:22px;top:18px;text-align:right;font-size:13px}
+  #feed div{margin-bottom:4px;background:rgba(8,11,17,.65);padding:4px 9px;
+    border-radius:5px;display:inline-block}
+  #banner{position:absolute;left:50%;top:36%;transform:translateX(-50%);
+    font-size:38px;font-weight:800;text-align:center;opacity:0;letter-spacing:1px;
+    text-shadow:0 4px 20px #000;white-space:nowrap}
+  #dmgflash{position:fixed;inset:0;background:radial-gradient(circle,transparent 40%,rgba(200,20,20,.55));
+    opacity:0;pointer-events:none;z-index:9}
+  #reloading{position:absolute;left:50%;top:58%;transform:translateX(-50%);
+    font-size:17px;color:var(--gold);opacity:0}
+  kbd{background:rgba(255,255,255,.1);border:1px solid var(--line);border-radius:4px;
+    padding:1px 6px;font-family:inherit;font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- ============ START SCREEN ============ -->
+<div id="startScreen" class="overlay">
+  <div class="panel" style="max-width:620px;text-align:center">
+    <h1>BREACHPOINT</h1>
+    <p style="margin-bottom:4px">5v5 round-based shooter. Buy what you can afford, kill to earn more.</p>
+    <!-- Build tag: bump this every time the file changes so you can tell at a
+         glance whether you're playing the latest download and not an old copy
+         sitting in your Downloads folder. -->
+    <p style="margin:0 0 18px;font-size:12px;color:var(--gold);letter-spacing:1px">
+      BUILD 8 &middot; drone: shootable + solid walls</p>
+    <div style="display:flex;gap:26px;justify-content:center;color:var(--dim);
+                font-size:13px;margin:20px 0 24px;text-align:left">
+      <div>
+        <div><kbd>W A S D</kbd> move</div>
+        <div><kbd>Space</kbd> jump / <kbd>Shift</kbd> walk</div>
+        <div><kbd>R</kbd> reload / <kbd>Q</kbd> scope</div>
+        <div><kbd>B</kbd> buy menu (buy phase)</div>
+      </div>
+      <div>
+        <div><kbd>Mouse</kbd> look / <kbd>Click</kbd> fire</div>
+        <div><b>Hold</b> <kbd>G</kbd> frag / <kbd>C</kbd> smoke — release to throw</div>
+        <div><kbd>V</kbd> launch &amp; fly the drone</div>
+        <div style="color:#6b7688;margin-left:2px">in drone: <kbd>L-Click</kbd> scan, <kbd>V</kbd> return</div>
+      </div>
+    </div>
+    <button class="btn" id="startBtn">ENTER MATCH</button>
+  </div>
+</div>
+
+<!-- ============ BUY MENU ============ -->
+<div id="buyMenu" class="overlay hidden">
+  <div class="panel">
+    <div class="buyhead">
+      <div>
+        <h2 style="margin:0">BUY PHASE &mdash; Round <span id="buyRound">1</span></h2>
+        <p style="margin:4px 0 0" id="buyHint">Survive the round and you keep your weapon. Die and you're back to the pistol.</p>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--dim);letter-spacing:1px">FUNDS</div>
+        <div class="money">$<span id="buyMoney">800</span></div>
+      </div>
+    </div>
+    <div class="guns" id="gunList"></div>
+    <div style="font-size:11px;color:var(--dim);letter-spacing:1px;margin:16px 0 8px">EQUIPMENT</div>
+    <div class="guns" id="equipList"></div>
+    <div class="buyfoot">
+      <p style="margin:0">Deploying in <b id="buyTimer">20</b>s</p>
+      <button class="btn" id="deployBtn">DEPLOY</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ ROUND END ============ -->
+<div id="roundEnd" class="overlay hidden">
+  <div class="panel" style="max-width:520px;text-align:center">
+    <h1 id="roundResult">ROUND WON</h1>
+    <p id="roundEarn"></p>
+  </div>
+</div>
+
+<!-- ============ MATCH END ============ -->
+<div id="matchEnd" class="overlay hidden">
+  <div class="panel" style="max-width:520px;text-align:center">
+    <h1 id="matchResult">VICTORY</h1>
+    <p id="matchStats"></p>
+    <button class="btn" id="rematchBtn" style="margin-top:16px">PLAY AGAIN</button>
+  </div>
+</div>
+
+<!-- ============ PAUSED ============ -->
+<div id="paused" class="overlay hidden">
+  <div class="panel" style="max-width:380px;text-align:center">
+    <h2>PAUSED</h2>
+    <p>Click to get back in the fight.</p>
+    <button class="btn" id="resumeBtn">RESUME</button>
+  </div>
+</div>
+
+<!-- ============ HUD ============ -->
+<div id="hud" class="hidden">
+  <div id="scope" class="hidden" data-kind="ads">
+    <div class="ring"></div><div class="rx"></div><div class="ry"></div><div class="dot"></div>
+  </div>
+  <div id="cross"><div class="ch-t"></div><div class="ch-b"></div><div class="ch-l"></div><div class="ch-r"></div></div>
+  <div id="hitmark">
+    <div style="left:7px;top:0;width:2px;height:16px"></div>
+    <div style="top:7px;left:0;height:2px;width:16px"></div>
+  </div>
+  <div id="top">
+    <div id="score"><span class="b">0</span> : <span class="r">0</span></div>
+    <div id="timer">1:40</div>
+    <div id="alive">BLUE 5 &nbsp;|&nbsp; RED 5</div>
+  </div>
+  <div id="feed"></div>
+  <div id="banner"></div>
+  <div id="reloading">RELOADING</div>
+  <div id="cash">$800</div>
+  <div id="equip"></div>
+  <div id="droneHud" class="hidden">
+    <div class="dframe"></div>
+    <div class="dbar">
+      <span style="color:var(--blue);font-weight:700">◈ DRONE</span>
+      &nbsp; hull <b id="droneHp">25</b>
+      &nbsp; battery <b id="droneTimer">12.0s</b>
+      &nbsp;·&nbsp; <kbd>L-Click</kbd> scan &nbsp; <kbd>WASD</kbd> fly &nbsp;
+      <kbd>Space</kbd>/<kbd>Shift</kbd> up·down &nbsp; <kbd>V</kbd> return
+    </div>
+    <div class="dwarn">⚠ YOUR BODY IS EXPOSED</div>
+  </div>
+  <div id="btmleft" class="hudbox"><div id="hp">100</div></div>
+  <div id="btmright" class="hudbox">
+    <div id="gunname">P-9 PISTOL</div>
+    <div id="ammo">12<small> / 12</small></div>
+  </div>
+</div>
+<div id="dmgflash"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =====================================================================
+   BREACHPOINT — a round-based team FPS with a buy economy.
+
+   The whole game is in this one file. The big pieces, in order:
+     1.  CONFIG      — all the numbers you'll want to tweak
+     2.  WORLD       — building the map out of boxes
+     3.  PLAYER      — movement, mouse look, collision
+     4.  WEAPONS     — shooting, spread, reloading
+     5.  BOTS        — the AI teammates and enemies
+     6.  ROUNDS      — buy phase -> live round -> payout -> repeat
+     7.  HUD         — everything you see on screen
+   ===================================================================== */
+
+
+/* =====================================================================
+   1. CONFIG  —  tweak these first, they change how the game feels
+   ===================================================================== */
+
+const CFG = {
+  // --- economy ---
+  startMoney:   800,    // exactly the price of the cheapest gun, on purpose
+  killReward:   200,
+  winReward:    2600,
+  lossReward:   1400,   // consolation cash so you're not stuck forever
+  maxMoney:     10000,
+
+  // --- match ---
+  roundsToWin:  7,
+  roundSeconds: 100,
+  buySeconds:   20,
+  teamSize:     5,      // you + 4 bots vs 5 bots
+
+  // --- player ---
+  moveSpeed:    5.4,
+  walkSpeed:    2.6,
+  jumpPower:    6.2,
+  gravity:      20,
+  eyeHeight:    1.65,
+  playerRadius: 0.42,
+  mouseSense:   0.0022,
+  fov:          78,     // normal field of view; scoped guns zoom in from here
+  scopeSpeedMult: 0.5,  // you move at half speed while scoped in
+
+  // --- equipment ---
+  droneFlightSec: 12,   // how long the scout drone stays airborne
+  droneSpeed:     9,    // how fast the drone flies
+  droneHp:        25,   // enemies can shoot the drone down at this much damage
+  pingSec:        7,    // how long a scanned enemy stays marked
+};
+
+// Weapons. damage is per bullet, rpm is rounds per minute,
+// spread is how much the shot wanders (smaller = more accurate).
+const GUNS = {
+  // botAcc / botDmg are what the BOTS get with this gun. They're deliberately
+  // much weaker than the player's numbers — a bot firing a real 620rpm rifle at
+  // you with honest accuracy kills you in well under a second, which is awful
+  // to play against. These values are tuned so a 1v1 takes roughly 3 seconds.
+  // A gun with a `scope` gets a Q toggle: it zooms the camera to that fov
+  // and multiplies its spread by spreadMult (so it's far more accurate while
+  // scoped). Only the AR-15X and the Longshot have one.
+  pistol:  { key:'pistol',  name:'P-9 Pistol',    price:0,
+             damage:26,  rpm:420,  mag:12, reload:1.3, spread:0.013, range:60,
+             pellets:1, headMult:3.0, botAcc:0.16, color:0x9aa7b8,
+             blurb:'Free every round. Weak, but it kills.' },
+
+  machinepistol: { key:'machinepistol', name:'Vektor M9', price:400,
+             damage:15,  rpm:1050, mag:20, reload:1.5, spread:0.040, range:32,
+             pellets:1, headMult:2.0, botAcc:0.075, color:0xa0a8b4,
+             blurb:'Cheap and frantic. Empties in a blink.' },
+
+  magnum:  { key:'magnum',  name:'R-357 Magnum',  price:650,
+             damage:58,  rpm:150,  mag:6,  reload:2.0, spread:0.016, range:55,
+             pellets:1, headMult:2.5, botAcc:0.22, botDmg:44, color:0xb5a06a,
+             blurb:'Hand cannon. Two taps and they drop.' },
+
+  smg:     { key:'smg',     name:'V-40 SMG',      price:800,
+             damage:21,  rpm:900,  mag:30, reload:1.8, spread:0.030, range:42,
+             pellets:1, headMult:2.0, botAcc:0.105, color:0x7f8ea3,
+             blurb:'Sprays fast. Falls apart at range.' },
+
+  shotgun: { key:'shotgun', name:'Breaker-12',    price:1500,
+             damage:13,  rpm:80,   mag:7,  reload:2.6, spread:0.075, range:20,
+             pellets:9,  headMult:1.5, botAcc:0.40, botDmg:55, color:0x8a7159,
+             blurb:'Deletes people in corridors. Useless across the map.' },
+
+  carbine: { key:'carbine', name:'K-7 Carbine',   price:2000,
+             damage:27,  rpm:700,  mag:25, reload:2.0, spread:0.022, range:55,
+             pellets:1, headMult:2.5, botAcc:0.10, color:0x788699,
+             blurb:'A poor man’s rifle. Still very good.' },
+
+  rifle:   { key:'rifle',   name:'AR-15X',        price:2700,
+             damage:33,  rpm:620,  mag:30, reload:2.2, spread:0.017, range:70,
+             pellets:1,  headMult:3.0, botAcc:0.115, color:0x6e7d8c,
+             scope:{ fov:50, spreadMult:0.4 },
+             blurb:'The all-rounder. Q to scope in.' },
+
+  lmg:     { key:'lmg',     name:'Titan LMG',     price:3400,
+             damage:29,  rpm:680,  mag:80, reload:4.2, spread:0.034, range:62,
+             pellets:1, headMult:2.0, botAcc:0.10, color:0x5c6672,
+             blurb:'80 rounds. Hold the trigger, hold the room.' },
+
+  sniper:  { key:'sniper',  name:'Longshot .50',  price:4500,
+             damage:118, rpm:48,   mag:5,  reload:3.0, spread:0.003, range:130,
+             pellets:1,  headMult:2.0, botAcc:0.20, botDmg:85, color:0x4f5a66,
+             scope:{ fov:24, spreadMult:0.2 },
+             blurb:'One shot to the chest. Q to scope in.' },
+};
+// Order shown in the buy menu, cheapest tier first.
+const GUN_ORDER = ['pistol','machinepistol','magnum','smg','shotgun',
+                   'carbine','rifle','lmg','sniper'];
+
+// Buyable equipment. Each is a one-use item with its own key. You can hold one
+// of each per round; using it consumes it, and anything you don't use is gone
+// at the end of the round (you rebuy in the next buy phase).
+const EQUIP = {
+  frag:  { key:'frag',  name:'Frag Grenade',  price:300, hotkey:'G', code:'KeyG',
+           color:0x3a4a2a,
+           blurb:'Hold G to aim the arc, release to throw. ~95 dmg.' },
+  smoke: { key:'smoke', name:'Smoke Grenade', price:250, hotkey:'C', code:'KeyC',
+           color:0x9aa3ad,
+           blurb:'Hold C to aim. Blocks sight — theirs and yours — 12s.' },
+  drone: { key:'drone', name:'Scout Drone',   price:400, hotkey:'V', code:'KeyV',
+           color:0x2a3a4a,
+           blurb:'Fly it yourself. Left-click scans enemies through walls.' },
+};
+const EQUIP_ORDER = ['frag','smoke','drone'];
+
+const TEAM = { BLUE:0, RED:1 };
+const TEAM_COLOR = [0x4aa3ff, 0xff5d5d];
+const TEAM_NAME  = ['BLUE','RED'];
+
+
+/* =====================================================================
+   2. WORLD  —  scene, lights, and a map made of boxes
+   ===================================================================== */
+
+let scene, camera, renderer, clock;
+const walls = [];        // meshes bullets stop against + you can't walk through
+const wallBoxes = [];    // THREE.Box3 versions of the same, for fast collision
+
+function initThree(){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0d1119);
+  scene.fog = new THREE.Fog(0x0d1119, 30, 95);
+
+  camera = new THREE.PerspectiveCamera(78, innerWidth/innerHeight, 0.1, 400);
+
+  renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.HemisphereLight(0xa9c4e8, 0x2a2f3a, 0.85));
+  const sun = new THREE.DirectionalLight(0xffe9c9, 0.85);
+  sun.position.set(24, 40, 16);
+  scene.add(sun);
+
+  clock = new THREE.Clock();
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+}
+
+/* Add one solid box to the map. Everything in the level is one of these. */
+function box(x, y, z, w, h, d, color){
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshLambertMaterial({ color })
+  );
+  m.position.set(x, y + h/2, z);   // y is the FLOOR of the box, easier to think about
+  scene.add(m);
+  walls.push(m);
+  wallBoxes.push(new THREE.Box3().setFromObject(m));
+  return m;
+}
+
+const MAP_HALF = 26;   // the arena is 52 x 52
+
+function buildMap(){
+  // floor
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(MAP_HALF*2, MAP_HALF*2),
+    new THREE.MeshLambertMaterial({ color:0x2b323d })
+  );
+  floor.rotation.x = -Math.PI/2;
+  scene.add(floor);
+
+  // painted spawn zones so you always know which end is yours
+  [[TEAM.BLUE, -MAP_HALF+7], [TEAM.RED, MAP_HALF-7]].forEach(([t,z]) => {
+    const p = new THREE.Mesh(
+      new THREE.PlaneGeometry(20, 9),
+      new THREE.MeshBasicMaterial({ color:TEAM_COLOR[t], transparent:true, opacity:0.16 })
+    );
+    p.rotation.x = -Math.PI/2; p.position.set(0, 0.02, z);
+    scene.add(p);
+  });
+
+  const W = 0x39424f, C = 0x4a4034, S = 0x333b47;
+
+  // outer walls
+  box(0, 0, -MAP_HALF, MAP_HALF*2, 6, 1, W);
+  box(0, 0,  MAP_HALF, MAP_HALF*2, 6, 1, W);
+  box(-MAP_HALF, 0, 0, 1, 6, MAP_HALF*2, W);
+  box( MAP_HALF, 0, 0, 1, 6, MAP_HALF*2, W);
+
+  // Central building — the fight usually happens here.
+  // NOTE: the whole map is rotationally symmetric (spin it 180 degrees and
+  // it looks the same), so neither team gets a better position. If you add
+  // your own cover, add it in mirrored pairs: a block at (x, z) wants a
+  // twin at (-x, -z), or one team will quietly win more often.
+  box(-7, 0,  0, 1, 4, 14, S);
+  box( 7, 0,  0, 1, 4, 14, S);
+  box(-4.5, 0, -7, 5, 4, 1, S);   // doorway in the middle of each end
+  box( 4.5, 0, -7, 5, 4, 1, S);
+  box(-4.5, 0,  7, 5, 4, 1, S);
+  box( 4.5, 0,  7, 5, 4, 1, S);
+  box( 0, 4, 0, 15, 0.6, 15, 0x424b58);   // roof
+
+  // long side lanes
+  box(-16, 0, -6, 1, 3.4, 13, W);
+  box( 16, 0,  6, 1, 3.4, 13, W);
+  box(-16, 0, 11, 9, 3.4, 1, W);
+  box( 16, 0,-11, 9, 3.4, 1, W);
+
+  // crates for cover — you can hide behind these, not on top
+  const crates = [
+    [-11,-14],[ 11, 14],[-3,-12],[ 3, 12],[-19, 2],[ 19,-2],
+    [-12, 6],[ 12,-6],[ 0,-18],[ 0, 18],[-21,-16],[ 21, 16],
+  ];
+  crates.forEach(([x,z]) => box(x, 0, z, 2.4, 1.8, 2.4, C));
+
+  // a couple of taller pillars to break sightlines
+  [[-9,-20],[9,20],[-20,14],[20,-14]].forEach(([x,z]) => box(x,0,z,1.6,4,1.6,S));
+}
+
+/* ---------------------------------------------------------------------
+   NAVIGATION GRAPH
+
+   Bots that just walk in a straight line at their target get stuck on the
+   first wall and stand there forever. So before the match starts we scatter
+   a grid of points over the map, throw away the ones inside walls, and
+   connect the ones that can see each other. That gives us a graph of
+   "places you can stand" and "routes between them", and a bot can find its
+   way around any corner with a breadth-first search.
+
+   The nice part: this rebuilds itself from whatever map you make. Move the
+   walls around and the bots still know how to get places.
+   --------------------------------------------------------------------- */
+
+const nav = { nodes: [], edges: [] };
+
+/* Is this spot inside (or right next to) something solid at chest height? */
+function pointBlocked(p, r){
+  for (const b of wallBoxes){
+    if (b.min.y > 1.5) continue;                     // it's above head height (the roof)
+    if (p.x > b.min.x - r && p.x < b.max.x + r &&
+        p.z > b.min.z - r && p.z < b.max.z + r) return true;
+  }
+  return false;
+}
+
+function buildNavGraph(){
+  const step = 4, lim = MAP_HALF - 3;
+  for (let x = -lim; x <= lim; x += step)
+    for (let z = -lim; z <= lim; z += step){
+      const p = new THREE.Vector3(x, 0, z);
+      if (!pointBlocked(p, 1.1)) nav.nodes.push(p);
+    }
+
+  nav.edges = nav.nodes.map(() => []);
+  for (let i = 0; i < nav.nodes.length; i++)
+    for (let j = i+1; j < nav.nodes.length; j++){
+      if (nav.nodes[i].distanceTo(nav.nodes[j]) > step * 1.55) continue;
+      if (!hasLineOfSight(nav.nodes[i], nav.nodes[j])) continue;
+      nav.edges[i].push(j);
+      nav.edges[j].push(i);
+    }
+}
+
+/* The closest node we can actually walk to in a straight line. */
+function nearestNode(p){
+  let best = -1, bestD = Infinity, fallback = -1, fallbackD = Infinity;
+  for (let i = 0; i < nav.nodes.length; i++){
+    const d = p.distanceTo(nav.nodes[i]);
+    if (d < fallbackD){ fallbackD = d; fallback = i; }
+    if (d < bestD && hasLineOfSight(p, nav.nodes[i])){ bestD = d; best = i; }
+  }
+  return best >= 0 ? best : fallback;
+}
+
+/* Breadth-first search = shortest route in number of hops. */
+function findPath(from, to){
+  const s = nearestNode(from), t = nearestNode(to);
+  if (s < 0 || t < 0) return null;
+  const prev = new Int32Array(nav.nodes.length).fill(-1);
+  const seen = new Uint8Array(nav.nodes.length);
+  const queue = [s]; seen[s] = 1;
+  while (queue.length){
+    const c = queue.shift();
+    if (c === t) break;
+    for (const n of nav.edges[c]) if (!seen[n]){ seen[n] = 1; prev[n] = c; queue.push(n); }
+  }
+  if (!seen[t]) return null;
+  const path = [];
+  for (let c = t; c !== -1; c = prev[c]) path.unshift(nav.nodes[c]);
+  return path;
+}
+
+/* Spawn points, spread out so teammates don't stack on each other. */
+function spawnPoint(team, index){
+  // The map is rotationally symmetric, so the spawns have to be too:
+  // red's positions are blue's spun 180 degrees (BOTH x and z flipped).
+  // Mirroring only z looks fine but quietly hands one team better cover.
+  const s = team === TEAM.BLUE ? 1 : -1;
+  return new THREE.Vector3(s * (-8 + index * 4), 0, s * (-MAP_HALF + 6));
+}
+
+
+/* =====================================================================
+   3. PLAYER  —  movement, mouse look, and collision with the map
+   ===================================================================== */
+
+const player = {
+  pos: new THREE.Vector3(0, 0, -20),
+  vel: new THREE.Vector3(),
+  yaw: 0, pitch: 0,
+  onGround: true,
+  hp: 100, alive: true,
+  team: TEAM.BLUE,
+  money: CFG.startMoney,
+  gun: GUNS.pistol,
+  ammo: GUNS.pistol.mag,
+  reloading: false, reloadEnd: 0,
+  nextShot: 0,
+  kills: 0, deaths: 0,
+  scoped: false,        // are we currently looking down a scope?
+  equip: { frag:0, smoke:0, drone:0 },   // how many of each item we're carrying
+};
+
+const keys = {};
+addEventListener('keydown', e => {
+  if (e.repeat) return;                 // ignore key-repeat so Q toggles once per press
+  keys[e.code] = true;
+  if (e.code === 'KeyR') startReload();
+  if (e.code === 'KeyB' && game.phase === 'buy') openBuy();
+  if (e.code === 'KeyQ' && game.phase === 'live' && !droneMode) toggleScope();
+  // Grenades: HOLD to aim (shows the arc), release to throw.
+  if (e.code === 'KeyG' && game.phase === 'live') useEquip('frag');
+  if (e.code === 'KeyC' && game.phase === 'live') useEquip('smoke');
+  // Drone: tap V to launch; tap again to fly home.
+  if (e.code === 'KeyV' && game.phase === 'live'){ droneMode ? exitDrone() : useEquip('drone'); }
+  if (e.code === 'Space') e.preventDefault();
+});
+addEventListener('keyup', e => {
+  keys[e.code] = false;
+  if (e.code === 'KeyG' && aiming === 'frag')  releaseGrenade();
+  if (e.code === 'KeyC' && aiming === 'smoke') releaseGrenade();
+});
+
+/* ---- mouse look (pointer lock) ---- */
+let pointerLocked = false;
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = document.pointerLockElement === renderer.domElement;
+  // Losing the lock mid-round means the player alt-tabbed — pause.
+  // (Not if they're dead — we release the lock on death on purpose.)
+  if (!pointerLocked && game.phase === 'live' && player.alive) showPause();
+});
+addEventListener('mousemove', e => {
+  if (!pointerLocked) return;
+  const clampPitch = v => Math.max(-Math.PI/2 + 0.05, Math.min(Math.PI/2 - 0.05, v));
+  if (droneMode){
+    // flying the drone: the mouse steers the drone, not the body
+    drone.yaw   -= e.movementX * CFG.mouseSense;
+    drone.pitch = clampPitch(drone.pitch - e.movementY * CFG.mouseSense);
+    return;
+  }
+  // Slow the aim down while scoped, in proportion to how far we've zoomed in.
+  // Without this a scoped sniper is unusably twitchy.
+  const sens = CFG.mouseSense * (player.scoped ? camera.fov / CFG.fov : 1);
+  player.yaw   -= e.movementX * sens;
+  player.pitch = clampPitch(player.pitch - e.movementY * sens);
+});
+
+/* Q toggles the scope on guns that have one. Zooms the camera in, shows the
+   scope overlay, and (via player.scoped) tightens spread and slows movement. */
+function toggleScope(){
+  if (!player.alive) return;
+  if (!player.gun.scope){ player.scoped = false; return; }
+  player.scoped = !player.scoped;
+  applyScope();
+}
+function applyScope(){
+  const on = player.scoped && player.gun.scope;
+  camera.fov = on ? player.gun.scope.fov : CFG.fov;
+  camera.updateProjectionMatrix();
+  el.scope.classList.toggle('hidden', !on);
+  // A sniper gets the full black scope; the rifle just gets a light optic ring.
+  el.scope.dataset.kind = (on && player.gun.key === 'sniper') ? 'sniper' : 'ads';
+  el.cross.style.opacity = on ? 0 : 1;    // hide the normal crosshair when scoped
+}
+/* Drop out of the scope — call whenever the weapon or life state changes. */
+function unscope(){
+  player.scoped = false;
+  camera.fov = CFG.fov;
+  camera.updateProjectionMatrix();
+  if (el.scope) el.scope.classList.add('hidden');
+  if (el.cross) el.cross.style.opacity = 1;
+}
+addEventListener('mousedown', e => {
+  if (e.button === 0 && pointerLocked && game.phase === 'live') mouseDown = true;
+});
+addEventListener('mouseup', e => { if (e.button === 0) mouseDown = false; });
+let mouseDown = false;
+
+function lockPointer(){ renderer.domElement.requestPointerLock(); }
+
+/* ---- collision ----
+   Everyone is a circle (seen from above) of some radius. For each solid box
+   we find the closest point on the box to that circle. If it's closer than
+   the radius we're overlapping, so we push straight back out along the
+   shortest direction. Simple, and it never lets you tunnel through a wall. */
+function resolveCollisions(pos, radius, feetY){
+  for (const b of wallBoxes){
+    if (feetY >= b.max.y - 0.05) continue;            // we're standing on top of it
+    if (feetY + 1.8 <= b.min.y) continue;             // it's above our head
+
+    const cx = Math.max(b.min.x, Math.min(pos.x, b.max.x));
+    const cz = Math.max(b.min.z, Math.min(pos.z, b.max.z));
+    const dx = pos.x - cx, dz = pos.z - cz;
+    const d2 = dx*dx + dz*dz;
+
+    if (d2 < radius*radius){
+      if (d2 > 0.0001){
+        const d = Math.sqrt(d2);
+        pos.x += (dx/d) * (radius - d);
+        pos.z += (dz/d) * (radius - d);
+      } else {
+        // dead centre inside the box: shove out the nearest face
+        const left = pos.x - b.min.x, right = b.max.x - pos.x;
+        const back = pos.z - b.min.z, front = b.max.z - pos.z;
+        const m = Math.min(left, right, back, front);
+        if (m === left)       pos.x = b.min.x - radius;
+        else if (m === right) pos.x = b.max.x + radius;
+        else if (m === back)  pos.z = b.min.z - radius;
+        else                  pos.z = b.max.z + radius;
+      }
+    }
+  }
+  // keep everyone inside the arena
+  const lim = MAP_HALF - 1.2;
+  pos.x = Math.max(-lim, Math.min(lim, pos.x));
+  pos.z = Math.max(-lim, Math.min(lim, pos.z));
+}
+
+/* How high is the ground directly under this point? (so you can stand on crates) */
+function groundHeight(pos, radius){
+  let h = 0;
+  for (const b of wallBoxes){
+    if (pos.x > b.min.x - radius && pos.x < b.max.x + radius &&
+        pos.z > b.min.z - radius && pos.z < b.max.z + radius){
+      if (b.max.y > h && b.max.y < 3.2) h = b.max.y;   // only short things are climbable
+    }
+  }
+  return h;
+}
+
+function updatePlayer(dt){
+  if (!player.alive){
+    // dead: float up a bit and watch the round finish
+    camera.position.lerp(new THREE.Vector3(player.pos.x, 6, player.pos.z), dt*2);
+    camera.rotation.set(player.pitch - 0.5, player.yaw, 0, 'YXZ');
+    return;
+  }
+
+  // --- what direction are we trying to go? ---
+  let fx = 0, fz = 0;
+  if (keys.KeyW) fz -= 1;
+  if (keys.KeyS) fz += 1;
+  if (keys.KeyA) fx -= 1;
+  if (keys.KeyD) fx += 1;
+
+  let speed = (keys.ShiftLeft || keys.ShiftRight) ? CFG.walkSpeed : CFG.moveSpeed;
+  if (player.scoped) speed *= CFG.scopeSpeedMult;   // slow down while scoped in
+  const len = Math.hypot(fx, fz);
+  let wishX = 0, wishZ = 0;
+  if (len > 0){
+    fx /= len; fz /= len;                    // normalise so diagonals aren't faster
+
+    // Rotate the key input into world space so "forward" means "the way the
+    // camera is pointing". The camera looks down its own -Z, so after a yaw
+    // turn its forward is (-sin, -cos) and its right is (cos, -sin). Getting
+    // one of these signs wrong is the classic FPS bug: the controls feel
+    // perfect facing one direction and invert when you turn 90 degrees,
+    // because only the X half of the movement ends up mirrored.
+    const s = Math.sin(player.yaw), c = Math.cos(player.yaw);
+    wishX = (fx * c + fz * s) * speed;
+    wishZ = (fz * c - fx * s) * speed;
+  }
+
+  // smooth acceleration — snappy on the ground, floaty in the air
+  const accel = player.onGround ? 14 : 3;
+  player.vel.x += (wishX - player.vel.x) * Math.min(1, accel * dt);
+  player.vel.z += (wishZ - player.vel.z) * Math.min(1, accel * dt);
+
+  // --- jumping and gravity ---
+  if (keys.Space && player.onGround){
+    player.vel.y = CFG.jumpPower;
+    player.onGround = false;
+  }
+  player.vel.y -= CFG.gravity * dt;
+
+  player.pos.x += player.vel.x * dt;
+  player.pos.z += player.vel.z * dt;
+  player.pos.y += player.vel.y * dt;
+
+  resolveCollisions(player.pos, CFG.playerRadius, player.pos.y);
+
+  const g = groundHeight(player.pos, CFG.playerRadius);
+  if (player.pos.y <= g){
+    player.pos.y = g;
+    player.vel.y = 0;
+    player.onGround = true;
+  } else {
+    player.onGround = false;
+  }
+
+  // --- put the camera where the eyes are ---
+  const bob = player.onGround ? Math.sin(performance.now()*0.011) *
+              Math.min(0.055, Math.hypot(player.vel.x, player.vel.z)*0.011) : 0;
+  camera.position.set(player.pos.x, player.pos.y + CFG.eyeHeight + bob, player.pos.z);
+  camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+
+  // --- shooting --- (can't fire while aiming a grenade or piloting the drone)
+  if (mouseDown && !aiming && !droneMode) tryShoot();
+  if (player.reloading && performance.now() >= player.reloadEnd) finishReload();
+}
+
+
+/* =====================================================================
+   4. WEAPONS  —  firing, spread, tracers, reloading
+   ===================================================================== */
+
+const raycaster = new THREE.Raycaster();
+const tracers = [];     // little glowing lines that fade out
+
+function tryShoot(){
+  const g = player.gun;
+  const now = performance.now();
+  if (player.reloading || now < player.nextShot) return;
+  if (player.ammo <= 0){ startReload(); return; }
+
+  player.nextShot = now + 60000 / g.rpm;
+  player.ammo--;
+
+  // moving makes you less accurate — stand still to hit things
+  const moving = Math.hypot(player.vel.x, player.vel.z) > 1.2;
+  let spread = g.spread * (moving ? 2.4 : 1) * (player.onGround ? 1 : 3);
+  // scoping in tightens the spread dramatically
+  if (player.scoped && g.scope) spread *= g.scope.spreadMult;
+
+  let hitSomething = false;
+  for (let p = 0; p < g.pellets; p++){
+    if (fireRay(spread, g)) hitSomething = true;
+  }
+  if (hitSomething) flashHitmarker();
+
+  kickCamera(g);
+  sfxShot(g);
+  if (player.ammo === 0) startReload();
+}
+
+/* Fire one bullet from the camera. Returns true if it hit an enemy. */
+function fireRay(spread, g){
+  const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion);
+  dir.x += (Math.random()-0.5) * spread * 2;
+  dir.y += (Math.random()-0.5) * spread * 2;
+  dir.z += (Math.random()-0.5) * spread * 2;
+  dir.normalize();
+
+  raycaster.set(camera.position, dir);
+  raycaster.far = g.range;
+
+  // Check bots first, then walls — whichever is closer wins.
+  const targets = [];
+  bots.forEach(b => { if (b.alive) targets.push(b.hitbox, b.head); });
+
+  const botHits  = raycaster.intersectObjects(targets, false);
+  const wallHits = raycaster.intersectObjects(walls, false);
+
+  const botD  = botHits.length  ? botHits[0].distance  : Infinity;
+  const wallD = wallHits.length ? wallHits[0].distance : Infinity;
+
+  let end = camera.position.clone().addScaledVector(dir, g.range);
+  let hit = false;
+
+  if (botD < wallD){
+    const obj = botHits[0].object;
+    const bot = obj.userData.bot;
+    end = botHits[0].point;
+    if (bot.team !== player.team){                    // no friendly fire
+      const head = obj.userData.isHead;
+      // damage drops off past 60% of the gun's range
+      const falloff = Math.max(0.45, 1 - Math.max(0, botD - g.range*0.6) / (g.range*0.8));
+      damageBot(bot, g.damage * (head ? g.headMult : 1) * falloff, player, head);
+      hit = true;
+    }
+  } else if (wallD < Infinity){
+    end = wallHits[0].point;
+    puff(end);
+  }
+
+  addTracer(camera.position.clone().addScaledVector(dir, 0.6), end, 0x9fd4ff);
+  return hit;
+}
+
+function startReload(){
+  const g = player.gun;
+  if (player.reloading || player.ammo === g.mag || !player.alive) return;
+  player.reloading = true;
+  player.reloadEnd = performance.now() + g.reload * 1000;
+  el.reloading.style.opacity = 1;
+}
+function finishReload(){
+  player.reloading = false;
+  player.ammo = player.gun.mag;
+  el.reloading.style.opacity = 0;
+}
+
+/* ---- viewmodel: the gun you see in the corner of the screen ---- */
+let viewGun, gunKick = 0;
+function buildViewmodel(){
+  viewGun = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.72),
+              new THREE.MeshLambertMaterial({ color:0x8a97a8 }));
+  body.position.set(0, 0, -0.28);
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.26, 0.14),
+              new THREE.MeshLambertMaterial({ color:0x3c434e }));
+  grip.position.set(0, -0.17, 0.02);
+  viewGun.add(body, grip);
+  viewGun.position.set(0.28, -0.24, -0.5);
+  camera.add(viewGun);
+  scene.add(camera);
+}
+function setViewmodelGun(g){
+  viewGun.children[0].material.color.setHex(g.color);
+  // bigger guns get a longer barrel — purely cosmetic
+  const LEN = { sniper:1.5, lmg:1.35, rifle:1.2, carbine:1.1, shotgun:1.15,
+                smg:0.95, magnum:0.8, machinepistol:0.8, pistol:0.7 };
+  viewGun.children[0].scale.z = LEN[g.key] || 0.9;
+}
+function kickCamera(g){
+  gunKick = Math.min(0.5, g.damage * 0.004 + 0.05);
+  player.pitch += gunKick * 0.06;                      // recoil pushes your aim up
+}
+
+/* ---- tracers and impact puffs ---- */
+function addTracer(from, to, color){
+  const geo = new THREE.BufferGeometry().setFromPoints([from, to]);
+  const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+    color, transparent:true, opacity:0.85 }));
+  scene.add(line);
+  tracers.push({ line, life: 0.07 });
+}
+function puff(point){
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.07, 5, 4),
+            new THREE.MeshBasicMaterial({ color:0xffd9a0, transparent:true }));
+  m.position.copy(point);
+  scene.add(m);
+  tracers.push({ line: m, life: 0.14 });
+}
+function updateTracers(dt){
+  for (let i = tracers.length-1; i >= 0; i--){
+    const t = tracers[i];
+    t.life -= dt;
+    t.line.material.opacity = Math.max(0, t.life * (t.boom ? 3.6 : 10));
+    if (t.boom) t.line.scale.multiplyScalar(1 + dt * 22);   // explosion fireball grows
+    if (t.life <= 0){ scene.remove(t.line); tracers.splice(i,1); }
+  }
+}
+
+/* ---- tiny sound engine (no files needed) ---- */
+let audio;
+function sfx(freq, dur, type, vol){
+  if (!audio) return;
+  const o = audio.createOscillator(), g2 = audio.createGain();
+  o.type = type; o.frequency.value = freq;
+  g2.gain.setValueAtTime(vol, audio.currentTime);
+  g2.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + dur);
+  o.connect(g2).connect(audio.destination);
+  o.start(); o.stop(audio.currentTime + dur);
+}
+function sfxShot(g){ sfx(g.key === 'sniper' ? 90 : g.key === 'shotgun' ? 110 : 190,
+                         0.09, 'square', 0.06); }
+function sfxHit(){  sfx(880, 0.05, 'sine', 0.07); }
+function sfxHurt(){ sfx(140, 0.16, 'sawtooth', 0.08); }
+function sfxBoom(){ sfx(70, 0.4, 'sawtooth', 0.12); }
+
+
+/* =====================================================================
+   4b. EQUIPMENT  —  grenades, smoke, and the scout drone
+
+   Grenades are little physics balls that bounce off the map and then either
+   explode (frag) or bloom into a smoke cloud (smoke). The drone is instant:
+   it just switches on "spotting" for a few seconds. All three are consumed on
+   use and only the player carries them.
+   ===================================================================== */
+
+const grenades = [];      // live thrown objects, mid-flight
+const smokes = [];        // active smoke clouds that block line of sight
+const pings = [];         // "spotted" markers that hover over enemies through walls
+
+let aiming = null;        // which grenade we're currently holding to aim ('frag'/'smoke')
+let aimLine = null;       // the dotted trajectory preview
+let aimDot = null;        // the landing-spot marker at the end of the arc
+
+// Drone piloting state. When droneMode is true the camera IS the drone and the
+// player's body sits still (and stays shootable) back where you left it.
+let droneMode = false;
+let droneMesh = null;
+let playerBody = null;    // your own avatar — only shown while you're in the drone
+const drone = { pos:new THREE.Vector3(), yaw:0, pitch:0, vel:new THREE.Vector3(),
+                until:0, nextMark:0, hp:25, isDrone:true };
+
+/* Build the player's own body — the same blocky figure the bots use, in your
+   team colour. It's hidden in normal first-person play and only appears while
+   you're flying the drone, so you can see yourself sitting there exposed. */
+function buildPlayerBody(){
+  const grp = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.15, 0.42),
+               new THREE.MeshLambertMaterial({ color: TEAM_COLOR[player.team] }));
+  body.position.y = 0.72;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34),
+               new THREE.MeshLambertMaterial({ color: 0xf0d9b8 }));
+  head.position.y = 1.5;
+  const legs = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.62, 0.34),
+               new THREE.MeshLambertMaterial({ color: 0x2c333d }));
+  legs.position.y = 0.31;
+  const gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.62),
+                  new THREE.MeshLambertMaterial({ color: 0x6d7887 }));
+  gunMesh.position.set(0.25, 1.0, -0.36);
+  grp.add(body, head, legs, gunMesh);
+  grp.visible = false;
+  scene.add(grp);
+  playerBody = grp;
+}
+/* Keep the avatar sitting where the body is, facing the way it faced. */
+function placePlayerBody(){
+  if (!playerBody) return;
+  playerBody.position.copy(player.pos);
+  playerBody.rotation.y = player.yaw + Math.PI;
+}
+
+const GRENADE_SPEED = 20, GRENADE_LIFT = 3.5;
+
+/* The initial velocity a thrown grenade leaves the camera with. Shared by the
+   trajectory preview and the real throw, so what you see is what you get. */
+function grenadeLaunchVel(){
+  const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+  return dir.multiplyScalar(GRENADE_SPEED).add(new THREE.Vector3(0, GRENADE_LIFT, 0));
+}
+
+/* Press-and-hold G / C to aim; release to throw. Tap V to launch the drone. */
+function useEquip(kind){
+  if (!player.alive || droneMode || player.equip[kind] <= 0) return;
+  if (kind === 'drone'){ player.equip.drone--; updateEquipHUD(); deployDrone(); return; }
+  if (aiming) return;                 // already aiming something
+  aiming = kind;                      // don't spend it yet — only on release
+}
+
+/* Called every frame while aiming: simulate the throw and draw the arc. */
+function updateAim(){
+  if (!aiming) return;
+  const pts = simulateArc(camera.position.clone().addScaledVector(
+      new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion), 0.6), grenadeLaunchVel());
+  if (!aimLine){
+    aimLine = new THREE.Line(new THREE.BufferGeometry(),
+      new THREE.LineDashedMaterial({ color:0xffd166, dashSize:0.35, gapSize:0.25 }));
+    scene.add(aimLine);
+    aimDot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8),
+      new THREE.MeshBasicMaterial({ color:0xffd166, transparent:true, opacity:0.8 }));
+    scene.add(aimDot);
+  }
+  aimLine.geometry.setFromPoints(pts);
+  aimLine.computeLineDistances();     // required for the dashes to show
+  aimLine.visible = true;
+  aimDot.position.copy(pts[pts.length - 1]);
+  aimDot.visible = true;
+}
+
+/* Step the same physics the real grenade uses, until it first hits something. */
+function simulateArc(start, vel){
+  const pts = [start.clone()];
+  const p = start.clone(), v = vel.clone(), dt = 1/60;
+  for (let i = 0; i < 150; i++){
+    v.y -= CFG.gravity * dt;
+    p.addScaledVector(v, dt);
+    if (p.y < 0.2){ p.y = 0.2; pts.push(p.clone()); break; }      // floor
+    let hitWall = false;
+    for (const b of wallBoxes){
+      if (p.y > b.max.y + 0.1 || p.y < b.min.y - 0.1) continue;
+      const cx = Math.max(b.min.x, Math.min(p.x, b.max.x));
+      const cz = Math.max(b.min.z, Math.min(p.z, b.max.z));
+      if ((p.x-cx)**2 + (p.z-cz)**2 < 0.16){ hitWall = true; break; }
+    }
+    pts.push(p.clone());
+    if (hitWall) break;
+  }
+  return pts;
+}
+
+/* Release fires the grenade with exactly the previewed velocity. */
+function releaseGrenade(){
+  if (!aiming) return;
+  const kind = aiming;
+  aiming = null;
+  if (aimLine) aimLine.visible = false;
+  if (aimDot)  aimDot.visible = false;
+  if (player.equip[kind] <= 0) return;    // safety
+  player.equip[kind]--;
+  updateEquipHUD();
+
+  const dir = new THREE.Vector3(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(kind === 'smoke' ? 0.16 : 0.13, 8, 6),
+    new THREE.MeshLambertMaterial({ color: EQUIP[kind].color }));
+  mesh.position.copy(camera.position).addScaledVector(dir, 0.6);
+  scene.add(mesh);
+  grenades.push({ kind, mesh, vel: grenadeLaunchVel(),
+                  fuse: kind === 'smoke' ? 1.2 : 1.6 });
+  sfx(300, 0.06, 'triangle', 0.04);
+}
+function cancelAim(){
+  aiming = null;
+  if (aimLine) aimLine.visible = false;
+  if (aimDot)  aimDot.visible = false;
+}
+
+function updateGrenades(dt){
+  for (let i = grenades.length - 1; i >= 0; i--){
+    const g = grenades[i];
+    g.fuse -= dt;
+    g.vel.y -= CFG.gravity * dt;
+    g.mesh.position.addScaledVector(g.vel, dt);
+    const p = g.mesh.position;
+
+    // bounce off the floor
+    if (p.y < 0.2){ p.y = 0.2; g.vel.y = -g.vel.y * 0.45; g.vel.x *= 0.7; g.vel.z *= 0.7; }
+
+    // bounce off walls: find the closest surface, push out, reflect velocity
+    for (const b of wallBoxes){
+      if (p.y > b.max.y + 0.15 || p.y < b.min.y - 0.15) continue;
+      const cx = Math.max(b.min.x, Math.min(p.x, b.max.x));
+      const cz = Math.max(b.min.z, Math.min(p.z, b.max.z));
+      const dx = p.x - cx, dz = p.z - cz;
+      if (dx*dx + dz*dz < 0.16){
+        if (Math.abs(dx) > Math.abs(dz)){ g.vel.x = -g.vel.x * 0.5; p.x = cx + Math.sign(dx || 1) * 0.4; }
+        else                            { g.vel.z = -g.vel.z * 0.5; p.z = cz + Math.sign(dz || 1) * 0.4; }
+      }
+    }
+
+    if (g.fuse <= 0){
+      if (g.kind === 'frag') explodeFrag(p.clone());
+      else spawnSmoke(p.clone());
+      scene.remove(g.mesh);
+      grenades.splice(i, 1);
+    }
+  }
+}
+
+/* Frag: area damage to everyone in range, with distance falloff. */
+function explodeFrag(pos){
+  const R = 6.5, MAX = 95;
+  // flash sphere that expands and fades
+  const flash = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 10),
+    new THREE.MeshBasicMaterial({ color:0xffb347, transparent:true, opacity:0.9 }));
+  flash.position.copy(pos); scene.add(flash);
+  tracers.push({ line: flash, life: 0.25, boom: true });
+  sfxBoom();
+
+  // hurt the player
+  if (player.alive){
+    const d = player.pos.clone().setY(player.pos.y + 0.9).distanceTo(pos);
+    if (d < R) damagePlayer(MAX * (1 - d/R) * (hasLineOfSight(pos, player.pos) ? 1 : 0.4),
+                            { name:'a grenade' });
+  }
+  // hurt every bot (enemy AND teammate — grenades don't care)
+  bots.forEach(b => {
+    if (!b.alive) return;
+    const d = b.pos.clone().setY(b.pos.y + 0.9).distanceTo(pos);
+    if (d < R){
+      const dmg = MAX * (1 - d/R) * (hasLineOfSight(pos, b.pos) ? 1 : 0.4);
+      // attribute enemy kills to the player; friendly hits do damage but no reward
+      damageBot(b, dmg, b.team !== player.team ? player : { name:'a grenade' }, false);
+    }
+  });
+}
+
+/* Smoke: a cluster of soft puffs that sits for a while and blocks sight. */
+function spawnSmoke(pos){
+  pos.y = 1.4;
+  const cloud = { pos, radius: 4.2, until: performance.now() + 12000, puffs: [] };
+  for (let i = 0; i < 14; i++){
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(1.8 + Math.random()*1.2, 8, 6),
+      new THREE.MeshLambertMaterial({ color:0xd7dde3, transparent:true, opacity:0 }));
+    puff.position.set(pos.x + (Math.random()-0.5)*4, pos.y + (Math.random()-0.5)*2.2,
+                      pos.z + (Math.random()-0.5)*4);
+    scene.add(puff);
+    cloud.puffs.push({ mesh: puff, target: 0.72 + Math.random()*0.2 });
+  }
+  smokes.push(cloud);
+  sfx(180, 0.5, 'sine', 0.05);
+}
+
+function updateSmokes(dt){
+  const now = performance.now();
+  for (let i = smokes.length - 1; i >= 0; i--){
+    const c = smokes[i];
+    const remain = c.until - now;
+    c.puffs.forEach(pf => {
+      // fade in over the first second, hold, then fade out over the last 1.5s
+      let want = pf.target;
+      if (remain < 1500) want = pf.target * Math.max(0, remain/1500);
+      pf.mesh.material.opacity += (want - pf.mesh.material.opacity) * Math.min(1, dt*3);
+      pf.mesh.rotation.y += dt * 0.2;
+    });
+    if (remain <= 0){
+      c.puffs.forEach(pf => scene.remove(pf.mesh));
+      smokes.splice(i, 1);
+    }
+  }
+}
+
+/* True if a straight line from A to B passes through any active smoke cloud.
+   Used to cut vision — for bots and for the player's own drone. */
+function smokeBlocks(from, to){
+  for (const c of smokes){
+    // distance from the cloud centre to the segment A->B
+    const ab = to.clone().sub(from);
+    const len2 = ab.dot(ab);
+    let t = len2 ? ab.dot(c.pos.clone().sub(from)) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const closest = from.clone().addScaledVector(ab, t);
+    if (closest.distanceTo(c.pos) < c.radius) return true;
+  }
+  return false;
+}
+
+/* ---- the flyable scout drone ----
+   Deploying it puts YOU inside the drone: the camera becomes the drone and you
+   fly it with WASD + mouse (Space up, Ctrl down). Your body stays put and can
+   still be shot, so scouting is a real risk. Left-click scans — it marks every
+   enemy the drone can see, and those marks linger after you fly home. The drone
+   has a short battery; when it runs out (or you press V) you snap back to your
+   body. */
+function deployDrone(){
+  droneMode = true;
+  drone.until = performance.now() + CFG.droneFlightSec * 1000;
+  drone.nextMark = 0;
+  drone.hp = CFG.droneHp;         // fresh 25 HP — enemies can shoot it down
+  drone.vel.set(0,0,0);
+  // start where the eyes are, looking the same way
+  drone.pos.copy(camera.position);
+  drone.yaw = player.yaw; drone.pitch = player.pitch;
+  if (!droneMesh){
+    droneMesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.16, 0.5),
+      new THREE.MeshLambertMaterial({ color: EQUIP.drone.color }));
+    scene.add(droneMesh);
+  }
+  droneMesh.visible = true;
+  cancelAim();
+  mouseDown = false;
+  el.droneHud.classList.remove('hidden');
+  // reveal your own body where you left it, so you can watch your back
+  placePlayerBody();
+  if (playerBody) playerBody.visible = true;
+  sfx(520, 0.15, 'square', 0.05);
+  showBanner('DRONE — LEFT-CLICK TO SCAN, V TO RETURN', '#4aa3ff', 1.6);
+}
+
+function exitDrone(){
+  if (!droneMode) return;
+  droneMode = false;
+  mouseDown = false;
+  if (droneMesh) droneMesh.visible = false;
+  if (playerBody) playerBody.visible = false;   // back in first person, hide the avatar
+  el.droneHud.classList.add('hidden');
+  // hand the view back to the body on the next frame
+  camera.position.set(player.pos.x, player.pos.y + CFG.eyeHeight, player.pos.z);
+  camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+}
+
+/* An enemy hit the drone. Knock its HP down and, at zero, blow it up and boot
+   the player back to their body. */
+function damageDrone(amount){
+  if (!droneMode) return;
+  drone.hp -= amount;
+  el.dmgflash.style.opacity = 0.4;                 // brief red edge to signal the hit
+  setTimeout(() => el.dmgflash.style.opacity = 0, 120);
+  sfx(240, 0.05, 'square', 0.05);
+  if (drone.hp <= 0){
+    const flash = new THREE.Mesh(new THREE.SphereGeometry(0.8, 10, 8),
+      new THREE.MeshBasicMaterial({ color:0xffb347, transparent:true, opacity:0.9 }));
+    flash.position.copy(drone.pos); scene.add(flash);
+    tracers.push({ line: flash, life: 0.25, boom: true });
+    sfxBoom();
+    showBanner('DRONE DOWN', '#ff5d5d', 1.4);
+    exitDrone();
+  }
+}
+
+function updateDroneFlight(dt){
+  const now = performance.now();
+  if (now > drone.until){ exitDrone(); return; }
+
+  // movement relative to where the drone is looking
+  let fx = 0, fz = 0, fy = 0;
+  if (keys.KeyW) fz -= 1;
+  if (keys.KeyS) fz += 1;
+  if (keys.KeyA) fx -= 1;
+  if (keys.KeyD) fx += 1;
+  if (keys.Space) fy += 1;
+  if (keys.ControlLeft || keys.ShiftLeft) fy -= 1;
+
+  const s = Math.sin(drone.yaw), c = Math.cos(drone.yaw), sp = CFG.droneSpeed;
+  const wishX = (fx*c + fz*s) * sp, wishZ = (fz*c - fx*s) * sp, wishY = fy * sp;
+  drone.vel.x += (wishX - drone.vel.x) * Math.min(1, 6*dt);
+  drone.vel.z += (wishZ - drone.vel.z) * Math.min(1, 6*dt);
+  drone.vel.y += (wishY - drone.vel.y) * Math.min(1, 6*dt);
+
+  drone.pos.addScaledVector(drone.vel, dt);
+  // stay inside the arena and between just-off-the-floor and above the walls
+  const lim = MAP_HALF - 1;
+  drone.pos.x = Math.max(-lim, Math.min(lim, drone.pos.x));
+  drone.pos.z = Math.max(-lim, Math.min(lim, drone.pos.z));
+  drone.pos.y = Math.max(1, Math.min(14, drone.pos.y));
+  droneCollide();     // can't fly through walls — but can still rise over them
+
+  camera.position.copy(drone.pos);
+  camera.rotation.set(drone.pitch, drone.yaw, 0, 'YXZ');
+  droneMesh.visible = false;   // don't render the shell we're sitting inside
+
+  if (mouseDown) droneScan();
+}
+
+/* Push the drone out of any wall it's inside. Only walls whose height spans the
+   drone's current altitude count, so climbing above a wall lets you clear it —
+   you just can't phase straight through one. */
+function droneCollide(){
+  const r = 0.4, p = drone.pos;
+  for (const b of wallBoxes){
+    if (p.y > b.max.y + 0.1 || p.y < b.min.y - 0.1) continue;   // wall is above/below us
+    const cx = Math.max(b.min.x, Math.min(p.x, b.max.x));
+    const cz = Math.max(b.min.z, Math.min(p.z, b.max.z));
+    const dx = p.x - cx, dz = p.z - cz;
+    const d2 = dx*dx + dz*dz;
+    if (d2 < r*r && d2 > 1e-6){
+      const d = Math.sqrt(d2);
+      p.x += (dx/d) * (r - d);
+      p.z += (dz/d) * (r - d);
+      // kill the velocity heading into the wall so we don't jitter against it
+      if (Math.abs(dx) > Math.abs(dz)) drone.vel.x = 0; else drone.vel.z = 0;
+    }
+  }
+}
+
+/* Mark every living enemy the drone can currently see. */
+function droneScan(){
+  const now = performance.now();
+  if (now < drone.nextMark) return;
+  drone.nextMark = now + 500;            // twice a second at most
+  let found = 0;
+  bots.forEach(b => {
+    if (!b.alive || b.team === player.team) return;
+    if (!hasLineOfSight(drone.pos, b.pos)) return;
+    addPing(b);
+    found++;
+  });
+  sfx(found ? 760 : 200, 0.12, 'square', 0.05);
+  if (found) showBanner(found + ' SPOTTED', '#ffd166', 0.7);
+}
+
+/* A ping is a diamond that hovers over one enemy, seen through walls, and
+   fades after a while — it stays up after you leave the drone. */
+function addPing(bot){
+  let ping = pings.find(p => p.bot === bot);
+  if (!ping){
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.4),
+      new THREE.MeshBasicMaterial({ color:0xffd166, depthTest:false, transparent:true }));
+    m.renderOrder = 999;
+    scene.add(m);
+    ping = { bot, mesh:m };
+    pings.push(ping);
+  }
+  ping.until = performance.now() + CFG.pingSec * 1000;
+}
+
+function updatePings(dt){
+  const now = performance.now();
+  for (let i = pings.length - 1; i >= 0; i--){
+    const p = pings[i];
+    const remain = p.until - now;
+    if (remain <= 0 || !p.bot.alive){ scene.remove(p.mesh); pings.splice(i,1); continue; }
+    p.mesh.position.copy(p.bot.pos).add(new THREE.Vector3(0, 2.3, 0));
+    p.mesh.rotation.y += dt * 2;
+    p.mesh.material.opacity = Math.min(1, remain/1000);   // fade out in the last second
+  }
+}
+
+/* Wipe all equipment effects — called on every round reset. */
+function clearEquipmentEffects(){
+  cancelAim();
+  exitDrone();
+  grenades.forEach(g => scene.remove(g.mesh)); grenades.length = 0;
+  smokes.forEach(c => c.puffs.forEach(pf => scene.remove(pf.mesh))); smokes.length = 0;
+  pings.forEach(p => scene.remove(p.mesh)); pings.length = 0;
+}
+
+
+/* =====================================================================
+   5. BOTS  —  teammates and enemies
+   ===================================================================== */
+
+const bots = [];
+
+function makeBot(team, index){
+  const grp = new THREE.Group();
+  const col = TEAM_COLOR[team];
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.15, 0.42),
+               new THREE.MeshLambertMaterial({ color: col }));
+  body.position.y = 0.72;
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34),
+               new THREE.MeshLambertMaterial({ color: 0xf0d9b8 }));
+  head.position.y = 1.5;
+
+  const legs = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.62, 0.34),
+               new THREE.MeshLambertMaterial({ color: 0x2c333d }));
+  legs.position.y = 0.31;
+
+  const gunMesh = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.62),
+                  new THREE.MeshLambertMaterial({ color: 0x6d7887 }));
+  gunMesh.position.set(0.25, 1.0, -0.36);
+
+  grp.add(body, head, legs, gunMesh);
+  scene.add(grp);
+
+  const bot = {
+    team, index, group: grp, hitbox: body, head, gunMesh,
+    pos: spawnPoint(team, index),
+    vel: new THREE.Vector3(),
+    yaw: team === TEAM.BLUE ? 0 : Math.PI,
+    hp: 100, alive: true,
+    gun: GUNS.pistol,
+    nextShot: 0, reloadUntil: 0, ammo: GUNS.pistol.mag,
+    target: null, path: null, repathAt: 0,
+    lastPos: spawnPoint(team, index).clone(), stuckCheckAt: 0,
+    unstickUntil: 0, unstickDir: 1,
+    skill: 0.72 + Math.random()*0.35,     // some bots are just better than others
+    reaction: 0.16 + Math.random()*0.26,  // seconds before they react to seeing you
+    seenAt: 0,
+    kills: 0,
+    name: (team===TEAM.BLUE?'BLU-':'RED-') + (index+1),
+  };
+  // so a bullet that hits this mesh can find its way back to the bot
+  body.userData = { bot, isHead:false };
+  head.userData = { bot, isHead:true };
+  bots.push(bot);
+  return bot;
+}
+
+function spawnTeams(){
+  bots.length = 0;
+  // you take slot 0 on BLUE, so BLUE only needs teamSize-1 bots
+  for (let i = 1; i < CFG.teamSize; i++) makeBot(TEAM.BLUE, i);
+  for (let i = 0; i < CFG.teamSize; i++) makeBot(TEAM.RED, i);
+}
+
+/* Can A see B? Fire a ray between them and see if a wall gets in the way. */
+const losRay = new THREE.Raycaster();
+function hasLineOfSight(from, to){
+  const a = from.clone(); a.y += 1.2;
+  const b = to.clone();   b.y += 1.0;
+  const dir = b.clone().sub(a);
+  const dist = dir.length();
+  if (dist < 0.001) return true;
+  losRay.set(a, dir.normalize());
+  losRay.far = dist;
+  if (losRay.intersectObjects(walls, false).length > 0) return false;
+  // smoke blocks sight too — this is what makes a smoke grenade useful
+  if (smokes.length && smokeBlocks(a, b)) return false;
+  return true;
+}
+
+/* What gun should a bot carry this round? Ramps up as the match goes on,
+   so early rounds are cheap-gun fights and later rounds get scary. Each tier
+   is a weighted pick from a small pool, so you face variety, not one gun. */
+function pick(pool){
+  const total = pool.reduce((a,p) => a + p[1], 0);
+  let r = Math.random() * total;
+  for (const [g, w] of pool){ if ((r -= w) <= 0) return GUNS[g]; }
+  return GUNS[pool[0][0]];
+}
+function botGunForRound(round){
+  if (round <= 1) return pick([['pistol',5],['machinepistol',3],['magnum',2],['smg',2]]);
+  if (round <= 2) return pick([['machinepistol',3],['magnum',3],['smg',4],['shotgun',3],['carbine',2]]);
+  if (round <= 4) return pick([['smg',3],['shotgun',3],['carbine',4],['rifle',4],['lmg',2],['sniper',2]]);
+  return pick([['shotgun',2],['carbine',2],['rifle',5],['lmg',3],['sniper',4],['magnum',1]]);
+}
+
+function updateBot(bot, dt){
+  if (!bot.alive) return;
+  const now = performance.now();
+
+  // ---- pick a target: nearest living enemy ----
+  const enemies = livingOnTeam(1 - bot.team);
+  // The player's scout drone is a target too, for bots on the other team.
+  if (droneMode && player.team !== bot.team) enemies.push(drone);
+  let best = null, bestD = Infinity;
+  for (const e of enemies){
+    const d = bot.pos.distanceTo(e.pos);
+    if (d < bestD){ bestD = d; best = e; }
+  }
+  bot.target = best;
+
+  const canSee = best && hasLineOfSight(bot.pos, best.pos) && bestD < bot.gun.range * 1.2;
+  if (canSee && bot.seenAt === 0) bot.seenAt = now;
+  if (!canSee) bot.seenAt = 0;
+
+  // ---- where do we want to be? ----
+  let goal;
+  if (canSee){
+    // We can see them, so forget pathfinding — just hold at a comfortable
+    // distance for the gun we're carrying.
+    bot.path = null;
+    const ideal = bot.gun.key === 'shotgun' ? 5 :
+                  bot.gun.key === 'sniper'  ? 26 : 13;
+    const away = bot.pos.clone().sub(best.pos).setY(0).normalize();
+    goal = best.pos.clone().addScaledVector(away, ideal);
+  } else if (best){
+    // Can't see them — walk the nav graph towards them.
+    if (!bot.path || now > bot.repathAt){
+      bot.path = findPath(bot.pos, best.pos);
+      bot.repathAt = now + 900 + Math.random()*400;   // stagger so they don't all repath at once
+    }
+    // Drop waypoints we've already reached.
+    while (bot.path && bot.path.length && bot.pos.distanceTo(bot.path[0]) < 2.2) bot.path.shift();
+    goal = (bot.path && bot.path.length) ? bot.path[0].clone() : best.pos.clone();
+  } else {
+    goal = new THREE.Vector3(0,0,0);
+  }
+
+  // ---- move ----
+  const to = goal.clone().sub(bot.pos).setY(0);
+  const dist = to.length();
+  const speed = canSee ? 2.6 : 4.2;
+  if (dist > 1.2){
+    to.normalize();
+    // strafe a little so they aren't standing still targets
+    if (canSee){
+      const side = new THREE.Vector3(-to.z, 0, to.x)
+                   .multiplyScalar(Math.sin(now*0.0013 + bot.index) * 0.9);
+      to.add(side).normalize();
+    }
+    // If we've been shoved against something, push sideways for a moment.
+    if (now < bot.unstickUntil){
+      const side = new THREE.Vector3(-to.z, 0, to.x).multiplyScalar(bot.unstickDir);
+      to.add(side).normalize();
+    }
+    bot.vel.x += (to.x*speed - bot.vel.x) * Math.min(1, 10*dt);
+    bot.vel.z += (to.z*speed - bot.vel.z) * Math.min(1, 10*dt);
+  } else {
+    bot.vel.x *= 0.85; bot.vel.z *= 0.85;
+  }
+
+  // ---- stuck detector ----
+  // Every half second, check we actually got somewhere. If we're trying to
+  // move but haven't, sidestep for a bit and ask for a fresh path.
+  if (now > bot.stuckCheckAt){
+    if (dist > 1.2 && bot.pos.distanceTo(bot.lastPos) < 0.35){
+      bot.unstickUntil = now + 700;
+      bot.unstickDir = Math.random() < 0.5 ? -1.6 : 1.6;
+      bot.repathAt = 0;
+    }
+    bot.lastPos.copy(bot.pos);
+    bot.stuckCheckAt = now + 500;
+  }
+
+  bot.pos.x += bot.vel.x * dt;
+  bot.pos.z += bot.vel.z * dt;
+  resolveCollisions(bot.pos, 0.45, bot.pos.y);
+  bot.pos.y = groundHeight(bot.pos, 0.45);
+
+  // face the target (or where we're walking)
+  const faceAt = canSee ? best.pos : goal;
+  const want = Math.atan2(faceAt.x - bot.pos.x, faceAt.z - bot.pos.z);
+  let diff = want - bot.yaw;
+  while (diff >  Math.PI) diff -= Math.PI*2;
+  while (diff < -Math.PI) diff += Math.PI*2;
+  bot.yaw += diff * Math.min(1, 9*dt);
+
+  bot.group.position.copy(bot.pos);
+  bot.group.rotation.y = bot.yaw + Math.PI;
+
+  // ---- shoot ----
+  if (!canSee) return;
+  if (now < bot.reloadUntil) return;
+  if ((now - bot.seenAt) / 1000 < bot.reaction) return;   // reaction delay
+  if (now < bot.nextShot) return;
+
+  bot.nextShot = now + 60000 / bot.gun.rpm * (1 + Math.random()*0.35);
+  bot.ammo--;
+  if (bot.ammo <= 0){
+    bot.ammo = bot.gun.mag;
+    bot.reloadUntil = now + bot.gun.reload * 1000;
+  }
+
+  // Rather than simulating every bullet, roll a dice weighted by distance,
+  // the gun, and how good this particular bot is. Much easier to balance.
+  const g = bot.gun;
+  const falloff = 1 - Math.min(0.85, bestD / (g.range * 1.15));
+  // the drone is small and darting, so it's harder to hit than a person
+  const chance = g.botAcc * bot.skill * (0.35 + falloff) * (best.isDrone ? 0.55 : 1);
+
+  const muzzle = bot.pos.clone().add(new THREE.Vector3(0, 1.05, 0));
+  const aim = best.isDrone ? best.pos.clone() : best.pos.clone().add(new THREE.Vector3(0, 1.0, 0));
+
+  if (Math.random() < chance){
+    addTracer(muzzle, aim, TEAM_COLOR[bot.team]);
+    const dmg = (g.botDmg || g.damage) * (0.85 + Math.random()*0.3);
+    if (best.isDrone)         damageDrone(dmg);
+    else if (best === player) damagePlayer(dmg, bot);
+    else damageBot(best, dmg, bot, false);
+  } else {
+    // visible miss so you can see where fire is coming from
+    const off = aim.clone().add(new THREE.Vector3(
+      (Math.random()-0.5)*2.2, (Math.random()-0.5)*1.6, (Math.random()-0.5)*2.2));
+    addTracer(muzzle, off, TEAM_COLOR[bot.team]);
+  }
+  sfx(200, 0.05, 'square', 0.02);
+}
+
+/* Everyone alive on a team, including the human player. */
+function livingOnTeam(team){
+  const out = bots.filter(b => b.alive && b.team === team);
+  if (player.team === team && player.alive) out.push(player);
+  return out;
+}
+
+function damageBot(bot, amount, attacker, head){
+  if (!bot.alive) return;
+  bot.hp -= amount;
+  if (attacker === player){ sfxHit(); }
+  if (bot.hp <= 0){
+    bot.alive = false;
+    bot.group.visible = false;
+    if (attacker === player){
+      player.kills++;
+      player.money = Math.min(CFG.maxMoney, player.money + CFG.killReward);
+      addFeed(`YOU killed ${bot.name}` + (head ? ' (headshot)' : '') +
+              ` <b style="color:var(--gold)">+$${CFG.killReward}</b>`);
+      showBanner(head ? 'HEADSHOT' : 'ELIMINATED', head ? '#ffd166' : '#fff', 0.7);
+      updateHUD();
+    } else {
+      attacker.kills++;
+      addFeed(`${attacker.name} killed ${bot.name}`);
+    }
+    checkRoundOver();
+  }
+}
+
+function damagePlayer(amount, attacker){
+  if (!player.alive || game.phase !== 'live') return;
+  player.hp -= amount;
+  sfxHurt();
+  el.dmgflash.style.opacity = Math.min(0.9, amount / 45);
+  setTimeout(() => el.dmgflash.style.opacity = 0, 130);
+  if (player.hp <= 0){
+    player.hp = 0;
+    player.alive = false;
+    player.deaths++;
+    mouseDown = false;
+    unscope();
+    cancelAim();
+    exitDrone();     // if you were piloting, you snap back to your (dead) body
+    addFeed(`${attacker.name} killed YOU`);
+    showBanner('YOU DIED', '#ff5d5d', 2);
+    document.exitPointerLock();
+    checkRoundOver();
+  }
+  updateHUD();
+}
+
+
+/* =====================================================================
+   6. ROUNDS  —  buy phase, live round, payout, repeat
+   ===================================================================== */
+
+const game = {
+  phase: 'menu',        // menu | buy | live | roundend | matchend
+  round: 1,
+  score: [0, 0],
+  roundEndsAt: 0,
+  buyEndsAt: 0,
+  survivedLastRound: false,
+};
+
+function startMatch(){
+  game.round = 1;
+  game.score = [0,0];
+  player.money = CFG.startMoney;
+  player.gun = GUNS.pistol;
+  player.kills = 0; player.deaths = 0;
+  bots.forEach(b => scene.remove(b.group));
+  spawnTeams();
+  beginBuyPhase();
+}
+
+function beginBuyPhase(){
+  game.phase = 'buy';
+
+  // Reset everyone for the new round.
+  player.hp = 100; player.alive = true;
+  player.pos.copy(spawnPoint(player.team, 0));
+  player.vel.set(0,0,0);
+  player.yaw = player.team === TEAM.BLUE ? 0 : Math.PI;
+  player.pitch = 0;
+  player.reloading = false;
+  el.reloading.style.opacity = 0;
+
+  // If you died last round you lose your gun. Survive and you keep it —
+  // that's what makes buying an expensive gun a real decision.
+  if (!game.survivedLastRound) player.gun = GUNS.pistol;
+  player.ammo = player.gun.mag;
+  setViewmodelGun(player.gun);
+  unscope();
+
+  // Equipment doesn't carry between rounds — you start every buy phase empty
+  // and re-buy what you want. Also wipe any smoke/grenades/drone still active.
+  player.equip = { frag:0, smoke:0, drone:0 };
+  clearEquipmentEffects();
+  updateEquipHUD();
+
+  bots.forEach(b => {
+    b.alive = true; b.hp = 100;
+    b.group.visible = true;
+    b.pos.copy(spawnPoint(b.team, b.index));
+    b.vel.set(0,0,0);
+    b.gun = botGunForRound(game.round);
+    b.ammo = b.gun.mag;
+    b.reloadUntil = 0; b.nextShot = 0; b.seenAt = 0;
+    b.path = null; b.repathAt = 0; b.unstickUntil = 0;
+    b.lastPos.copy(b.pos); b.stuckCheckAt = 0;
+    // Re-roll aim and reaction speed every round. If we only rolled these
+    // once when the bot was made, a team could draw five sharp bots and
+    // quietly hold that advantage for the entire match.
+    b.skill    = 0.72 + Math.random()*0.35;
+    b.reaction = 0.16 + Math.random()*0.26;
+    b.gunMesh.material.color.setHex(b.gun.color);
+    b.group.position.copy(b.pos);
+  });
+
+  game.buyEndsAt = performance.now() + CFG.buySeconds * 1000;
+  document.exitPointerLock();
+  openBuy();
+  updateHUD();
+}
+
+function beginLiveRound(){
+  game.phase = 'live';
+  el.paused.classList.add('hidden');
+  el.buyMenu.classList.add('hidden');
+  el.hud.classList.remove('hidden');
+  game.roundEndsAt = performance.now() + CFG.roundSeconds * 1000;
+  lockPointer();
+  showBanner('ROUND ' + game.round, '#fff', 1.2);
+  updateHUD();
+}
+
+function checkRoundOver(){
+  if (game.phase !== 'live') return;
+  const blue = livingOnTeam(TEAM.BLUE).length;
+  const red  = livingOnTeam(TEAM.RED).length;
+  if (blue === 0)      endRound(TEAM.RED);
+  else if (red === 0)  endRound(TEAM.BLUE);
+}
+
+function endRound(winner){
+  if (game.phase !== 'live') return;
+  game.phase = 'roundend';
+  el.paused.classList.add('hidden');
+  mouseDown = false;
+  game.score[winner]++;
+  game.survivedLastRound = player.alive;
+  document.exitPointerLock();
+
+  const won = winner === player.team;
+  const payout = won ? CFG.winReward : CFG.lossReward;
+  player.money = Math.min(CFG.maxMoney, player.money + payout);
+
+  el.roundResult.textContent = won ? 'ROUND WON' : 'ROUND LOST';
+  el.roundResult.style.color = won ? 'var(--blue)' : 'var(--red)';
+  el.roundEarn.innerHTML =
+    `<b style="color:var(--gold);font-size:20px">+$${payout}</b><br>` +
+    (player.alive
+      ? `You survived — you keep your ${player.gun.name}.`
+      : `You died — you'll start next round with the pistol.`) +
+    `<br><span style="font-size:13px">Score ${game.score[0]} : ${game.score[1]}</span>`;
+
+  el.hud.classList.add('hidden');
+  el.roundEnd.classList.remove('hidden');
+
+  setTimeout(() => {
+    el.roundEnd.classList.add('hidden');
+    if (game.score[winner] >= CFG.roundsToWin) endMatch(winner);
+    else { game.round++; beginBuyPhase(); }
+  }, 4200);
+}
+
+function endMatch(winner){
+  game.phase = 'matchend';
+  const won = winner === player.team;
+  el.matchResult.textContent = won ? 'VICTORY' : 'DEFEAT';
+  el.matchResult.style.color = won ? 'var(--blue)' : 'var(--red)';
+  el.matchStats.innerHTML =
+    `Final score ${game.score[0]} : ${game.score[1]}<br>` +
+    `${player.kills} kills &nbsp;·&nbsp; ${player.deaths} deaths &nbsp;·&nbsp; ` +
+    `$${player.money} left over`;
+  el.matchEnd.classList.remove('hidden');
+}
+
+/* ---- the buy menu ---- */
+function openBuy(){
+  el.buyMenu.classList.remove('hidden');
+  el.hud.classList.add('hidden');
+  el.buyRound.textContent = game.round;
+  el.buyMoney.textContent = player.money;
+  renderGunList();
+  renderEquipList();
+}
+
+function renderGunList(){
+  el.gunList.innerHTML = '';
+  GUN_ORDER.forEach(key => {
+    const g = GUNS[key];
+    const owned = player.gun.key === key;
+    const broke = !owned && g.price > player.money;
+
+    const d = document.createElement('div');
+    d.className = 'gun' + (owned ? ' owned' : broke ? ' broke' : '');
+    d.innerHTML =
+      `<div class="n">${g.name}</div>` +
+      `<div class="p">${owned ? 'EQUIPPED' : g.price === 0 ? 'FREE' : '$' + g.price}</div>` +
+      `<div class="s">` +
+        stat('DMG',   g.damage * g.pellets, 130) +
+        stat('RATE',  g.rpm,   950) +
+        stat('RANGE', g.range, 130) +
+        `<div style="margin-top:7px;color:#7f8b9e">${g.blurb}</div>` +
+      `</div>`;
+
+    if (!broke && !owned) d.onclick = () => buyGun(g);
+    el.gunList.appendChild(d);
+  });
+}
+function stat(label, value, max){
+  const pct = Math.min(100, value / max * 100);
+  return `<div>${label}<span class="bar"><i style="width:${pct}%"></i></span></div>`;
+}
+
+function buyGun(g){
+  if (g.price > player.money) return;
+  if (player.gun.key === g.key) return;      // already holding it — don't charge twice
+  player.money -= g.price;
+  player.gun = g;
+  player.ammo = g.mag;
+  setViewmodelGun(g);
+  unscope();                 // buying a new gun always lowers the scope
+  sfx(660, 0.08, 'sine', 0.05);
+  el.buyMoney.textContent = player.money;
+  renderGunList();
+  updateHUD();
+}
+
+function renderEquipList(){
+  el.equipList.innerHTML = '';
+  EQUIP_ORDER.forEach(key => {
+    const e = EQUIP[key];
+    const owned = player.equip[key] > 0;
+    const broke = !owned && e.price > player.money;
+
+    const d = document.createElement('div');
+    d.className = 'gun' + (owned ? ' owned' : broke ? ' broke' : '');
+    d.innerHTML =
+      `<div class="n">${e.name}</div>` +
+      `<div class="p">${owned ? 'OWNED &check;' : '$' + e.price}</div>` +
+      `<div class="s">` +
+        `<div>Key <kbd>${e.hotkey}</kbd> to use</div>` +
+        `<div style="margin-top:7px;color:#7f8b9e">${e.blurb}</div>` +
+      `</div>`;
+
+    if (!broke && !owned) d.onclick = () => buyEquip(e);
+    el.equipList.appendChild(d);
+  });
+}
+
+function buyEquip(e){
+  if (e.price > player.money || player.equip[e.key] > 0) return;  // one of each per round
+  player.money -= e.price;
+  player.equip[e.key] = 1;
+  sfx(660, 0.08, 'sine', 0.05);
+  el.buyMoney.textContent = player.money;
+  renderEquipList();
+  updateEquipHUD();
+}
+
+/* The little equipment chips at the bottom-left of the HUD. */
+function updateEquipHUD(){
+  el.equip.innerHTML = EQUIP_ORDER
+    .filter(key => player.equip[key] > 0)
+    .map(key => `<div class="eq"><kbd>${EQUIP[key].hotkey}</kbd><b>${EQUIP[key].name}</b></div>`)
+    .join('');
+}
+
+
+/* =====================================================================
+   7. HUD
+   ===================================================================== */
+
+const el = {};
+['startScreen','startBtn','buyMenu','buyRound','buyMoney','buyTimer','deployBtn',
+ 'gunList','equipList','roundEnd','roundResult','roundEarn','matchEnd','matchResult','matchStats',
+ 'rematchBtn','paused','resumeBtn','hud','hp','ammo','gunname','cash','score','timer',
+ 'alive','feed','banner','hitmark','dmgflash','reloading','cross','scope','equip',
+ 'droneHud','droneTimer','droneHp']
+ .forEach(id => el[id] = document.getElementById(id));
+
+function updateHUD(){
+  el.hp.textContent = Math.ceil(Math.max(0, player.hp));
+  el.hp.style.color = player.hp > 60 ? '#e8edf5' : player.hp > 25 ? '#ffd166' : '#ff5d5d';
+  el.ammo.innerHTML = `${player.ammo}<small> / ${player.gun.mag}</small>`;
+  el.gunname.textContent = player.gun.name.toUpperCase();
+  el.cash.textContent = '$' + player.money;
+  el.score.innerHTML = `<span class="b">${game.score[0]}</span> : <span class="r">${game.score[1]}</span>`;
+  el.alive.textContent =
+    `BLUE ${livingOnTeam(TEAM.BLUE).length}  |  RED ${livingOnTeam(TEAM.RED).length}`;
+}
+
+function addFeed(html){
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  el.feed.prepend(d);
+  while (el.feed.children.length > 5) el.feed.lastChild.remove();
+  setTimeout(() => d.remove(), 5000);
+}
+
+let bannerUntil = 0;
+function showBanner(text, color, seconds){
+  el.banner.textContent = text;
+  el.banner.style.color = color;
+  el.banner.style.opacity = 1;
+  bannerUntil = performance.now() + seconds*1000;
+}
+function flashHitmarker(){
+  el.hitmark.style.opacity = 1;
+  setTimeout(() => el.hitmark.style.opacity = 0, 90);
+}
+function showPause(){
+  el.paused.classList.remove('hidden');
+}
+
+
+/* =====================================================================
+   MAIN LOOP
+   ===================================================================== */
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, clock.getDelta());   // cap dt so a lag spike can't teleport anyone
+
+  if (game.phase === 'live'){
+    // While piloting the drone the body sits still (and stays a target);
+    // otherwise the body updates as normal.
+    if (droneMode) updateDroneFlight(dt);
+    else           updatePlayer(dt);
+    bots.forEach(b => updateBot(b, dt));
+    updateGrenades(dt);
+    updateAim();          // redraw the grenade arc while holding G/C
+    if (droneMode){
+      const left = Math.max(0, drone.until - performance.now());
+      el.droneTimer.textContent = (left/1000).toFixed(1) + 's';
+      el.droneHp.textContent = Math.max(0, Math.ceil(drone.hp));
+      el.droneHp.style.color = drone.hp > 12 ? '#fff' : '#ff5d5d';
+    }
+
+    const left = Math.max(0, game.roundEndsAt - performance.now());
+    el.timer.textContent =
+      Math.floor(left/60000) + ':' + String(Math.floor(left/1000) % 60).padStart(2,'0');
+    if (left <= 0){
+      // time ran out — whoever has more players left wins
+      const b = livingOnTeam(TEAM.BLUE).length, r = livingOnTeam(TEAM.RED).length;
+      endRound(b >= r ? TEAM.BLUE : TEAM.RED);
+    }
+    updateHUD();
+  }
+
+  if (game.phase === 'buy'){
+    const left = Math.max(0, game.buyEndsAt - performance.now());
+    el.buyTimer.textContent = Math.ceil(left/1000);
+    if (left <= 0) beginLiveRound();
+  }
+
+  // recoil settles back down
+  if (gunKick > 0){
+    gunKick *= 0.85;
+    viewGun.position.z = -0.5 + gunKick * 0.35;
+    if (gunKick < 0.001) gunKick = 0;
+  }
+  if (performance.now() > bannerUntil) el.banner.style.opacity = 0;
+
+  updateTracers(dt);
+  updateSmokes(dt);      // keep smoke drifting/fading even between phases
+  updatePings(dt);       // spotted-enemy markers linger after a drone scan
+  renderer.render(scene, camera);
+}
+
+
+/* =====================================================================
+   BOOT
+   ===================================================================== */
+
+initThree();
+buildMap();
+buildNavGraph();     // must come after buildMap — it reads the walls
+buildViewmodel();
+buildPlayerBody();
+spawnTeams();
+animate();
+
+el.startBtn.onclick = () => {
+  audio = new (window.AudioContext || window.webkitAudioContext)();
+  el.startScreen.classList.add('hidden');
+  startMatch();
+};
+el.deployBtn.onclick = beginLiveRound;
+el.rematchBtn.onclick = () => { el.matchEnd.classList.add('hidden'); startMatch(); };
+el.resumeBtn.onclick = () => { el.paused.classList.add('hidden'); lockPointer(); };
+renderer.domElement.addEventListener('click', () => {
+  if (game.phase === 'live' && !pointerLocked){
+    el.paused.classList.add('hidden');
+    lockPointer();
+  }
+});
+</script>
+</body>
+</html>
